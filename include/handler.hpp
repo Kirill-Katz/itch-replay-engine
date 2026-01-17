@@ -1,76 +1,75 @@
 #pragma once
 
+#include <rte_ethdev.h>
+#include <rte_ether.h>
+#include <vector>
 #include <cstdint>
 #include <emmintrin.h>
 #include <x86intrin.h>
-#include "itch_parser.hpp"
+#include "itch_header_parser.hpp"
+#include "mold_udp_64.hpp"
+#include <rte_mbuf_core.h>
 
-struct Handler {
-    inline void handle(ITCH::AddOrderNoMpid msg, uint16_t size);
-    inline void handle(ITCH::OrderCancel msg, uint16_t size);
-    inline void handle(ITCH::OrderDelete msg, uint16_t size);
-    inline void handle(ITCH::OrderReplace msg, uint16_t size);
+class Handler {
+public:
+    Handler(rte_mempool* mempool, uint16_t port):
+        mold_udp_64_("ITCHFEED00", 0),
+        mempool_(mempool),
+        port_(port)
+    {
+        payload_.reserve(2*1024);
+        setup_headers();
+    }
 
-    inline void handle(ITCH::SystemEvent msg, uint16_t size);
-    inline void handle(ITCH::StockDirectory msg, uint16_t size);
-    inline void handle(ITCH::TradingAction msg, uint16_t size);
-    inline void handle(ITCH::RegSho msg, uint16_t size);
-    inline void handle(ITCH::MarketParticipantPos msg, uint16_t size);
-    inline void handle(ITCH::MwcbDeclineLevel msg, uint16_t size);
-    inline void handle(ITCH::MwcbStatus msg, uint16_t size);
-    inline void handle(ITCH::IpoQuotationPeriodUpd msg, uint16_t size);
-    inline void handle(ITCH::LuldAuctionCollar msg, uint16_t size);
-    inline void handle(ITCH::OperationalHalt msg, uint16_t size);
+    inline void handle(std::byte const * msg_start, ITCH::ItchHeader header, uint16_t header_size);
+    inline void setup_headers();
 
-    inline void handle(ITCH::AddOrderMpid msg, uint16_t size);
-    inline void handle(ITCH::OrderExecuted msg, uint16_t size);
-    inline void handle(ITCH::OrderExecutedPrice msg, uint16_t size);
+private:
+    uint64_t last_timestamp_ = 0;
+    MoldUDP64 mold_udp_64_;
 
-    inline void handle(ITCH::TradeMessageNonCross msg, uint16_t size);
-    inline void handle(ITCH::TradeMessageCross msg, uint16_t size);
-    inline void handle(ITCH::BrokenTrade msg, uint16_t size);
-    inline void handle(ITCH::Noii msg, uint16_t size);
-    inline void handle(ITCH::DirectListingCapitalRaise msg, uint16_t size);
+    std::vector<std::byte> payload_;
+    uint16_t payload_msg_count_ = 0;
+    rte_mempool* mempool_;
+    uint16_t port_;
 
-    void handle_after();
-    void handle_before();
-    void reset();
-
-    uint64_t total_messages = 0;
-    unsigned aux_start, aux_end;
-
-    uint64_t t0;
 };
 
-inline void Handler::handle_before() {}
-inline void Handler::handle_after() {}
+inline void Handler::setup_headers() {
+    // Ethernet header
+    struct rte_ether_addr src_mac;
+    rte_eth_macaddr_get(port_, &src_mac);
 
-#define DEF_HANDLER(T) \
-inline void Handler::handle(T msg, uint16_t size) { \
-    asm volatile("" : : "r,m"(msg)); \
+    struct rte_ether_hdr ethernet_hdr;
+    ethernet_hdr.src_addr = src_mac;
+    ethernet_hdr.dst_addr = {
+        .addr_bytes = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF}
+    };
+
+    ethernet_hdr.ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+    printf("Src MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", src_mac.addr_bytes[0], src_mac.addr_bytes[1], src_mac.addr_bytes[2], src_mac.addr_bytes[3], src_mac.addr_bytes[4], src_mac.addr_bytes[5]);
+
+    // Ipv4 header
+    struct rte_ipv4_hdr ipv4_hdr;
+
+
 }
 
-DEF_HANDLER(ITCH::AddOrderNoMpid)
-DEF_HANDLER(ITCH::OrderCancel)
-DEF_HANDLER(ITCH::OrderDelete)
-DEF_HANDLER(ITCH::OrderReplace)
-DEF_HANDLER(ITCH::SystemEvent)
-DEF_HANDLER(ITCH::StockDirectory)
-DEF_HANDLER(ITCH::TradingAction)
-DEF_HANDLER(ITCH::RegSho)
-DEF_HANDLER(ITCH::MarketParticipantPos)
-DEF_HANDLER(ITCH::MwcbDeclineLevel)
-DEF_HANDLER(ITCH::MwcbStatus)
-DEF_HANDLER(ITCH::IpoQuotationPeriodUpd)
-DEF_HANDLER(ITCH::LuldAuctionCollar)
-DEF_HANDLER(ITCH::OperationalHalt)
-DEF_HANDLER(ITCH::AddOrderMpid)
-DEF_HANDLER(ITCH::OrderExecuted)
-DEF_HANDLER(ITCH::OrderExecutedPrice)
-DEF_HANDLER(ITCH::TradeMessageNonCross)
-DEF_HANDLER(ITCH::TradeMessageCross)
-DEF_HANDLER(ITCH::BrokenTrade)
-DEF_HANDLER(ITCH::Noii)
-DEF_HANDLER(ITCH::DirectListingCapitalRaise)
+inline void Handler::handle(std::byte const * msg_start, ITCH::ItchHeader header, uint16_t header_size) {
+    if (header.timestamp == last_timestamp_) {
+        payload_.insert(payload_.end(), msg_start, msg_start + header_size);
+        payload_msg_count_++;
+    } else {
+        auto mold_udp_header = mold_udp_64_.generate_header(payload_msg_count_);
 
-#undef DEF_HANDLER
+
+        // send payload_
+
+
+        payload_.clear();
+
+        payload_.insert(payload_.end(), msg_start, msg_start + header_size);
+        payload_msg_count_ = 1;
+    }
+
+}
