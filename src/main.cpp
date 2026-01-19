@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
 
     uint16_t port_id = 0;
     rte_mempool* pool = rte_pktmbuf_pool_create(
-        "mbuf_pool",
+        "mbuf_pool_secondary",
         8192,
         256,
         0,
@@ -108,51 +108,6 @@ int main(int argc, char** argv) {
 
     if (!pool) {
         throw std::runtime_error("mempool creation failed\n");
-    }
-
-    rte_eth_dev_info dev_info;
-    int status = rte_eth_dev_info_get(port_id, &dev_info);
-    if (status != 0) {
-        throw std::runtime_error("failed to get device info\n");
-    }
-
-    struct rte_eth_conf conf = {};
-    conf.txmode.offloads = dev_info.tx_offload_capa;
-
-    if (rte_eth_dev_configure(port_id, 0, 1, &conf) < 0) {
-        throw std::runtime_error("failed to configure the device\n");
-    }
-
-    rte_eth_txconf txconf = dev_info.default_txconf;
-    txconf.offloads = conf.txmode.offloads;
-
-    if (rte_eth_tx_queue_setup(port_id, 0, 1024, rte_socket_id(), &txconf)) {
-        throw std::runtime_error("failed to configure the tx queue\n");
-    }
-
-    if (rte_eth_dev_start(port_id) < 0) {
-        throw std::runtime_error("failed to start the device\n");
-    }
-
-    rte_mbuf* m = rte_pktmbuf_alloc(pool);
-    if (!m) {
-        throw std::runtime_error("mbuf alloc failed");
-    }
-
-    const char payload[] = "hello";
-    size_t len = sizeof(payload);
-
-    char* data = rte_pktmbuf_mtod(m, char*);
-    memcpy(data, payload, len);
-
-    m->data_len = len;
-    m->pkt_len = len;
-
-    uint16_t sent = rte_eth_tx_burst(port_id, 0, &m, 1);
-
-    if (sent == 0) {
-        rte_pktmbuf_free(m);
-        throw std::runtime_error("tx failed");
     }
 
     argc -= eal_argc;

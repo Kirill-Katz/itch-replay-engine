@@ -3,6 +3,7 @@
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 #include <rte_ip4.h>
+#include <iostream>
 #include <rte_udp.h>
 #include <stdexcept>
 #include <vector>
@@ -152,6 +153,7 @@ inline void Handler::handle(std::byte const * msg_start, const ITCH::ItchHeader&
             rte_pktmbuf_free(m);
         }
 
+        std::cout << "Sent a packet!" << '\n';
         payload_.clear();
         payload_.insert(payload_.end(), msg_start, msg_start + header_size);
         payload_msg_count_ = 1;
