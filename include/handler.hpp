@@ -17,7 +17,7 @@
 class Handler {
 public:
     Handler(rte_mempool* mempool, uint16_t port):
-        mold_udp_64_("ITCHFEED00", 1),
+        mold_udp_64_("ITCHFEED00", 0),
         mempool_(mempool),
         port_(port)
     {
@@ -129,11 +129,10 @@ inline void Handler::send_buffer() {
         throw std::runtime_error("Failed to allocate a pkt buffer!");
     }
 
-    std::byte* p = rte_pktmbuf_mtod(m, std::byte*);
-    if (rte_pktmbuf_tailroom(m) < pkt_len) {
+    std::byte* p = reinterpret_cast<std::byte*>(rte_pktmbuf_append(m, pkt_len));
+    if (!p) {
         rte_pktmbuf_free(m);
-        std::cerr << pkt_len << '\n';
-        throw std::runtime_error("Failed to send a packet, not enough memory in the TX buffer!");
+        throw std::runtime_error("Failed to append packet data to mbuf!");
     }
 
     add_ethernet_header(p);
@@ -152,11 +151,8 @@ inline void Handler::send_buffer() {
     udp_hdr_ptr->dgram_cksum = 0;
     udp_hdr_ptr->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr_ptr, udp_hdr_ptr);
 
-    m->data_len = pkt_len;
-    m->pkt_len = pkt_len;
-
     while (rte_eth_tx_burst(port_, 0, &m, 1) == 0) {
-        _mm_pause();
+        rte_pause();
     }
 }
 

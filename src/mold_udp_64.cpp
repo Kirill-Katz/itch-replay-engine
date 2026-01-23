@@ -12,7 +12,7 @@ std::array<std::byte, 20> MoldUDP64::generate_header(uint16_t msg_count) {
     auto msg_count_be = rte_cpu_to_be_16(msg_count);
     std::memcpy(header.data()+18, &msg_count_be, 2);
 
-    current_seq_ += msg_count;
+    current_seq_ += 1;
     return header;
 }
 

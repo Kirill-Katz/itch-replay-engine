@@ -14,6 +14,7 @@
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <fstream>
+#include <rte_service.h>
 
 #include "spsc_buffer.hpp"
 #include "handler.hpp"
@@ -77,7 +78,7 @@ int main(int argc, char** argv) {
 
     uint16_t port_id = 0;
     rte_mempool* pool = rte_pktmbuf_pool_create(
-        "mbuf_pool_secondary",
+        "mbuf_pool",
         8192,
         256,
         0,
@@ -88,6 +89,34 @@ int main(int argc, char** argv) {
     if (!pool) {
         throw std::runtime_error("mempool creation failed\n");
     }
+
+    rte_eth_dev_info dev_info;
+    if (rte_eth_dev_info_get(port_id, &dev_info) != 0)
+        throw std::runtime_error("dev info failed");
+
+    rte_eth_conf conf{};
+    conf.txmode.offloads = 0;
+    conf.rxmode.offloads = 0;
+
+    if (rte_eth_dev_configure(port_id, 1, 1, &conf) < 0)
+        throw std::runtime_error("dev configure failed");
+
+    rte_eth_txconf txconf = dev_info.default_txconf;
+    txconf.offloads = 0;
+
+    rte_eth_rxconf rxconf = dev_info.default_rxconf;
+    rxconf.offloads = 0;
+
+    if (rte_eth_tx_queue_setup(port_id, 0, 1024,
+                               rte_socket_id(), &txconf) != 0)
+        throw std::runtime_error("tx queue failed");
+
+    if (rte_eth_rx_queue_setup(port_id, 0, 1024,
+                               rte_socket_id(), &rxconf, pool) != 0)
+        throw std::runtime_error("rx queue failed");
+
+    if (rte_eth_dev_start(port_id) < 0)
+        throw std::runtime_error("dev start failed");
 
     argc -= eal_argc;
     argv += eal_argc;
@@ -121,7 +150,6 @@ int main(int argc, char** argv) {
     ITCH::ItchHeaderParser parser;
 
     parser.parse(src, size, handler);
-    handler.send_buffer();
 
     munmap(ptr, size);
     close(fd);
@@ -137,6 +165,9 @@ int main(int argc, char** argv) {
     std::cout << "Processed: " << bytes << " bytes\n";
     std::cout << "Time: " << seconds << " s\n";
     std::cout << "Throughput: " << gbps << " GB/s\n";
+
+    rte_eth_dev_stop(port_id);
+    rte_eth_dev_close(port_id);
 
     return 0;
 }
