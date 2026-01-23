@@ -118,6 +118,17 @@ int main(int argc, char** argv) {
     if (rte_eth_dev_start(port_id) < 0)
         throw std::runtime_error("dev start failed");
 
+    struct rte_eth_link link;
+    std::cout << "Waiting for link!" << '\n';
+    do {
+        int ret = rte_eth_link_get_nowait(0, &link);
+        if (ret != 0) {
+            throw std::runtime_error("Failed to get link!");
+        }
+        rte_pause();
+    } while(!link.link_status);
+    std::cout << "Link UP!" << '\n';
+
     argc -= eal_argc;
     argv += eal_argc;
 

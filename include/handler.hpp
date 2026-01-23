@@ -171,4 +171,6 @@ inline void Handler::handle(std::byte const * msg_start, const ITCH::ItchHeader&
         payload_msg_count_ = 0;
         std::cout << total_messages_len << '\n';
     }
+
+
 }
