@@ -53,6 +53,14 @@ private:
     struct rte_ipv4_hdr ipv4_hdr_;
     struct rte_ether_hdr ethernet_hdr_;
     struct rte_udp_hdr udp_hdr_;
+
+    uint64_t total1 = 0;
+    uint64_t total2 = 0;
+    uint64_t total3 = 0;
+
+    uint64_t count1 = 0;
+    uint64_t count2 = 0;
+    uint64_t count3 = 0;
 };
 
 inline void Handler::setup_headers() {
@@ -168,7 +176,6 @@ inline void Handler::send_packets() {
     while (queued_packets_ > 0) {
         auto sent_packets = rte_eth_tx_burst(port_, 0, buffers_.data() + base, queued_packets_);
         if (sent_packets == 0) {
-            rte_pause();
             continue;
         }
 
@@ -178,21 +185,42 @@ inline void Handler::send_packets() {
 }
 
 inline void Handler::handle(std::byte const * msg_start, const ITCH::ItchHeader& header, uint16_t message_size) {
+    count1++;
+    unsigned aux = 0;
+    uint64_t start1 = __rdtscp(&aux);
+
     total_messages_len += message_size;
 
     bool is_last_message = header.type == 'S' && static_cast<char>(*(msg_start + 13)) == 'C';
     payload_.insert(payload_.end(), msg_start, msg_start + message_size);
     payload_msg_count_++;
 
+    uint64_t end1 = __rdtscp(&aux);
+    total1 += end1 - start1;
+
     bool should_pack = payload_.size() >= 1400 || is_last_message;
     if (should_pack) {
+        count2++;
+        uint64_t start2 = __rdtscp(&aux);
         queue_packet();
         payload_.clear();
         payload_msg_count_ = 0;
+        uint64_t end2 = __rdtscp(&aux);
+        total2 += end2 - start2;
     }
 
     bool should_send = queued_packets_ == packet_queue_size || is_last_message;
     if (should_send) {
+        count3++;
+        uint64_t start3 = __rdtscp(&aux);
         send_packets();
+        uint64_t end3 = __rdtscp(&aux);
+        total3 += end3 - start3;
+    }
+
+    if (is_last_message) {
+        std::cout << total1 / count1 << '\n';
+        std::cout << total2 / count2 << '\n';
+        std::cout << total3 / count3 << '\n';
     }
 }

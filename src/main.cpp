@@ -79,10 +79,10 @@ int main(int argc, char** argv) {
     uint16_t port_id = 0;
     rte_mempool* pool = rte_pktmbuf_pool_create(
         "mbuf_pool",
-        16383,
+        4095,
         256,
         0,
-        RTE_PKTMBUF_HEADROOM + 8192,
+        RTE_PKTMBUF_HEADROOM + 2048,
         rte_socket_id()
     );
 
