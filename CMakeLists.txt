@@ -14,6 +14,7 @@ add_executable(run
     src/main.cpp
     src/spsc_buffer.cpp
     src/mold_udp_64.cpp
+    src/dpdk_context.cpp
 )
 
 target_include_directories(run PRIVATE include)

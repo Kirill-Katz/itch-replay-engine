@@ -5,7 +5,6 @@
 #include <iostream>
 #include <rte_lcore.h>
 #include <rte_mbuf_core.h>
-#include <stdexcept>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -16,6 +15,7 @@
 #include <fstream>
 #include <rte_service.h>
 
+#include "dpdk_context.hpp"
 #include "spsc_buffer.hpp"
 #include "handler.hpp"
 #include "itch_header_parser.hpp"
@@ -67,63 +67,12 @@ void consumer(SPSCBuffer& ring_buffer, rte_mempool* mempool, uint16_t port_id) {
 }
 
 int main(int argc, char** argv) {
-    int eal_argc = rte_eal_init(argc, argv);
-    if (eal_argc < 0) {
-        throw std::runtime_error("EAL init failed");
-    }
+    constexpr uint16_t port_id = 0;
+    DPDKContext dpdk_context(port_id);
 
-    if (rte_eth_dev_count_avail() == 0) {
-        throw std::runtime_error("Specify a vdev device");
-    }
-
-    uint16_t port_id = 0;
-    rte_mempool* pool = rte_pktmbuf_pool_create(
-        "mbuf_pool",
-        1024,
-        256,
-        0,
-        RTE_PKTMBUF_HEADROOM + 2048,
-        rte_socket_id()
-    );
-
-    if (!pool) {
-        throw std::runtime_error("mempool creation failed\n");
-    }
-
-    rte_eth_dev_info dev_info;
-    if (rte_eth_dev_info_get(port_id, &dev_info) != 0)
-        throw std::runtime_error("dev info failed");
-
-    rte_eth_conf conf{};
-    conf.txmode.offloads = 0;
-    conf.rxmode.offloads = 0;
-
-    if (rte_eth_dev_configure(port_id, 1, 1, &conf) < 0)
-        throw std::runtime_error("dev configure failed");
-
-    rte_eth_txconf txconf = dev_info.default_txconf;
-    txconf.offloads = 0;
-
-    rte_eth_rxconf rxconf = dev_info.default_rxconf;
-    rxconf.offloads = 0;
-
-    if (rte_eth_tx_queue_setup(port_id, 0, 1024,
-                               rte_socket_id(), &txconf) != 0)
-        throw std::runtime_error("tx queue failed");
-
-    if (rte_eth_rx_queue_setup(port_id, 0, 1024,
-                               rte_socket_id(), &rxconf, pool) != 0)
-        throw std::runtime_error("rx queue failed");
-
-    if (rte_eth_dev_start(port_id) < 0)
-        throw std::runtime_error("dev start failed");
-
-    argc -= eal_argc;
-    argv += eal_argc;
-
-    if (argc < 2) {
-        throw std::runtime_error("Usage: ./run [path to itch file]");
-    }
+    dpdk_context.setup_eal(argc, argv);
+    dpdk_context.setup_mempool();
+    dpdk_context.setup_eth_device(0);
 
     std::string itch_file_path = argv[1];
     consume.store(true, std::memory_order_relaxed);
@@ -146,7 +95,7 @@ int main(int argc, char** argv) {
     std::byte* src = static_cast<std::byte*>(ptr);
 
     auto start = std::chrono::steady_clock::now();
-    Handler handler(pool, port_id);
+    Handler handler(dpdk_context.get_pool(), port_id);
     ITCH::ItchHeaderParser parser;
 
     parser.parse(src, size, handler);
