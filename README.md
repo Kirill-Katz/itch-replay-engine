@@ -1,6 +1,6 @@
 # ITCH Market Data Replay Engine
 
-High-throughput replay of ITCH feeds using DPDK vdev
+High-throughput replay of ITCH feeds using DPDK memif.
 
 # Build
 ```
@@ -15,7 +15,7 @@ Notice that the consumer should setup up the DPDK vdev device and the producer w
 Also for more info check the [dpdk quick start](https://core.dpdk.org/doc/quick-start/) to setup hugepages and install dpdk.
 
 ```
-sudo ./run  --proc-type=primary --file-prefix=memif_srv  --vdev=net_memif0,socket=/tmp/memif2.sock,id=0,role=client,rsize=10,zero-copy=yes --single-file-segments --lcores='0@0' --no-pci   --log-level=pmd.net.memif,8   [ITCH file path]
+sudo taskset -c 3 ./run  --proc-type=primary --file-prefix=memif_srv  --vdev=net_memif0,socket=/tmp/memif2.sock,id=0,role=client,rsize=9,zero-copy=yes --single-file-segments -l 3 --no-pci [ITCH file path]
 ```
 
-To see how to implement a consumer go to [this](https://github.com/Kirill-Katz/itch5-hft-parser/tree/dpdk-enabled-version) repo to the `dpdk-enabled-version` to see an example.
+And example of an ingestion engine to which the replay engine sends data to can be found [here](https://github.com/Kirill-Katz/itch-ingestion-engine).
