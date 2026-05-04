@@ -220,8 +220,8 @@ inline void Handler::handle(std::byte const * msg_start, const ITCH::ItchHeader&
     }
 
     if (is_last_message) {
-        std::cout << total1 / count1 << '\n';
-        std::cout << total2 / count2 << '\n';
-        std::cout << total3 / count3 << '\n';
+        std::cout << "Inserting into payload: " << total1 / count1 << '\n';
+        std::cout << "Queue packet: " << total2 / count2 << '\n';
+        std::cout << "Send packets: " << total3 / count3 << '\n';
     }
 }

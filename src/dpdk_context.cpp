@@ -19,10 +19,13 @@ void DPDKContext::setup_eal(int& argc, char**& argv) {
 }
 
 void DPDKContext::setup_mempool() {
+    constexpr unsigned nb_mbufs = 16384;
+    constexpr unsigned mbuf_cache_size = 256;
+
     pool_ = rte_pktmbuf_pool_create(
         "mbuf_pool",
-        1024,
-        256,
+        nb_mbufs,
+        mbuf_cache_size,
         0,
         RTE_PKTMBUF_HEADROOM + 2048,
         rte_socket_id()
@@ -43,22 +46,17 @@ void DPDKContext::setup_eth_device(uint16_t port_id) {
     conf.txmode.offloads = 0;
     conf.rxmode.offloads = 0;
 
-    if (rte_eth_dev_configure(port_id, 1, 1, &conf) < 0)
+    // This replay path is TX-only. Creating an RX queue here just burns ring
+    // entries and mempool objects that the TX path needs.
+    if (rte_eth_dev_configure(port_id, 0, 1, &conf) < 0)
         throw std::runtime_error("dev configure failed");
 
     rte_eth_txconf txconf = dev_info.default_txconf;
     txconf.offloads = 0;
 
-    rte_eth_rxconf rxconf = dev_info.default_rxconf;
-    rxconf.offloads = 0;
-
     if (rte_eth_tx_queue_setup(port_id, 0, 1024,
                                rte_socket_id(), &txconf) != 0)
         throw std::runtime_error("tx queue failed");
-
-    if (rte_eth_rx_queue_setup(port_id, 0, 1024,
-                               rte_socket_id(), &rxconf, pool_) != 0)
-        throw std::runtime_error("rx queue failed");
 
     if (rte_eth_dev_start(port_id) < 0)
         throw std::runtime_error("dev start failed");

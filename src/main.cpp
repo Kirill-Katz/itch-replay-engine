@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 
     dpdk_context.setup_eal(argc, argv);
     dpdk_context.setup_mempool();
-    dpdk_context.setup_eth_device(0);
+    dpdk_context.setup_eth_device(port_id);
 
     std::string itch_file_path = argv[1];
     consume.store(true, std::memory_order_relaxed);
@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
     auto end = std::chrono::steady_clock::now();
 
     double seconds = std::chrono::duration<double>(end - start).count();
-    size_t bytes = total_bytes.load();
+    size_t bytes = size;
 
     double gb = bytes / 1e9;
     double gbps = gb / seconds;
